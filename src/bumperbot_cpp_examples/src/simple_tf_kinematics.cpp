@@ -2,6 +2,7 @@
 
 
 using namespace std::chrono_literals;
+using namespace std::placeholders;
 
 SimpleTfKinematics::SimpleTfKinematics(const std::string &name) 
 : Node(name), x_increment_(0.05), last_x_(0.0)
@@ -32,7 +33,7 @@ SimpleTfKinematics::SimpleTfKinematics(const std::string &name)
 
     timer_ = create_wall_timer(0.1s, std::bind(&SimpleTfKinematics::timerCallback, this));
 
-    get_transform_srv_ = create_service<bumperbot_msgs::srv::GetTransform>("get_transform");
+    get_transform_srv_ = create_service<bumperbot_msgs::srv::GetTransform>("get_transform", std::bind(&SimpleTfKinematics::getTransformCallback , this, _1, _2));
 }
 
 void SimpleTfKinematics::timerCallback(){
@@ -55,6 +56,26 @@ void SimpleTfKinematics::timerCallback(){
 
 }
 
+bool SimpleTfKinematics::getTransformCallback(const std::shared_ptr<bumperbot_msgs::srv::GetTransform::Request> req,
+                                const std::shared_ptr<bumperbot_msgs::srv::GetTransform::Response> res)
+                                {
+
+                                    RCLCPP_INFO_STREAM(get_logger(), "Request Transform between " << req->frame_id << " and " << req->child_frame_id);
+                                    geometry_msgs::msg::TransformStamped requested_transform;
+                                    try{
+                                    requested_transform = tf_buffer_->lookupTransform(req->frame_id, req->child_frame_id, tf2::TimePointZero);
+                                    }
+                                    catch(tf2::TransformException &ex){
+                                        RCLCPP_ERROR_STREAM(get_logger(), "An error occrued while transforming from : << req->frame_id" << " and " << req->child_frame_id << ": " << ex.what());
+                                        res->success = false;
+                                        return true;
+                                    }
+                                    res->transform = requested_transform;
+                                    res->success = true;
+                                    return true;
+
+
+                                }
 
 
 int main(int argc, char* argv[]){
